@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -19,8 +20,21 @@ func parseToString(value any) string {
 	case map[string]any:
 		return parseMap(v)
 	default:
-		return "[UNKNOWN]"
+		str, err := parseJson(v)
+		if err != nil {
+			return "[UNKNOWN]"
+
+		}
+		return str
 	}
+}
+
+func parseJson(v any) (string, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 func parseArray(arr []any) string {
