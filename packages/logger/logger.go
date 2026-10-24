@@ -1,15 +1,15 @@
 package logger
 
-func Info(args ...any) {
-	print(INFO, args...)
+func Debug(args ...any) {
+	print(DEBUG, args...)
 }
 
 func Http(args ...any) {
 	print(HTTP, args...)
 }
 
-func Debug(args ...any) {
-	print(DEBUG, args...)
+func Info(args ...any) {
+	print(INFO, args...)
 }
 
 func Warn(args ...any) {
