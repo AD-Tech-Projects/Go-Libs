@@ -20,7 +20,7 @@ func print(level LogLevel, args ...any) {
 	printWithContext(level, "", args...)
 }
 
-type contextLogger struct {
+type loggerWithContext struct {
 	context string
 }
 

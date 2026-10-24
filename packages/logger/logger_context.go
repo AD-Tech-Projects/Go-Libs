@@ -1,25 +1,33 @@
 package logger
 
-func WithContext(context string) *contextLogger {
-	return &contextLogger{context: context}
+type ContextLogger interface {
+	Debug(args ...any)
+	Http(args ...any)
+	Info(args ...any)
+	Warn(args ...any)
+	Error(args ...any)
 }
 
-func (l *contextLogger) Debug(args ...any) {
+func WithContext(context string) ContextLogger {
+	return &loggerWithContext{context: context}
+}
+
+func (l *loggerWithContext) Debug(args ...any) {
 	printWithContext(DEBUG, l.context, args...)
 }
 
-func (l *contextLogger) Http(args ...any) {
+func (l *loggerWithContext) Http(args ...any) {
 	printWithContext(HTTP, l.context, args...)
 }
 
-func (l *contextLogger) Info(args ...any) {
+func (l *loggerWithContext) Info(args ...any) {
 	printWithContext(INFO, l.context, args...)
 }
 
-func (l *contextLogger) Warn(args ...any) {
+func (l *loggerWithContext) Warn(args ...any) {
 	printWithContext(WARN, l.context, args...)
 }
 
-func (l *contextLogger) Error(args ...any) {
+func (l *loggerWithContext) Error(args ...any) {
 	printWithContext(ERROR, l.context, args...)
 }
