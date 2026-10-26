@@ -21,7 +21,12 @@ func TestGenerateHash(t *testing.T) {
 }
 
 func TestGenerateToken(t *testing.T) {
-	token, err := GenerateToken(32)
+	subscriptionID := "550e8400-e29b-41d4-a716-446655440000"
+	createdAt := time.Now().UTC().Add(-time.Minute)
+	expiration := createdAt.Add(15 * time.Minute)
+	secret := []byte("my-signing-secret")
+
+	token, err := GenerateToken(subscriptionID, createdAt, expiration, secret)
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -29,12 +34,69 @@ func TestGenerateToken(t *testing.T) {
 	if token == "" {
 		t.Fatal("expected non-empty token")
 	}
+
+	claims, err := ValidateToken(token, secret)
+	if err != nil {
+		t.Fatalf("expected nil error validating token, got %v", err)
+	}
+
+	if claims.SubscriptionID != subscriptionID {
+		t.Fatalf("expected subscription id %s, got %s", subscriptionID, claims.SubscriptionID)
+	}
 }
 
-func TestGenerateTokenInvalidSize(t *testing.T) {
-	_, err := GenerateToken(0)
+func TestGenerateTokenInvalidSubscriptionID(t *testing.T) {
+	_, err := GenerateToken("invalid-uuid", time.Now().UTC(), time.Now().UTC().Add(time.Hour), []byte("secret"))
 	if err == nil {
-		t.Fatal("expected error for invalid token size")
+		t.Fatal("expected error for invalid subscription id")
+	}
+}
+
+func TestGenerateTokenInvalidExpiration(t *testing.T) {
+	now := time.Now().UTC()
+	_, err := GenerateToken("550e8400-e29b-41d4-a716-446655440000", now, now, []byte("secret"))
+	if err == nil {
+		t.Fatal("expected error for invalid expiration")
+	}
+}
+
+func TestValidateTokenInvalidSignature(t *testing.T) {
+	token, err := GenerateToken(
+		"550e8400-e29b-41d4-a716-446655440000",
+		time.Now().UTC(),
+		time.Now().UTC().Add(time.Hour),
+		[]byte("secret"),
+	)
+	if err != nil {
+		t.Fatalf("expected nil error generating token, got %v", err)
+	}
+
+	_, err = ValidateToken(token, []byte("wrong-secret"))
+	if err == nil {
+		t.Fatal("expected error for invalid signature")
+	}
+}
+
+func TestValidateTokenExpired(t *testing.T) {
+	createdAt := time.Now().UTC().Add(-2 * time.Hour)
+	expiration := createdAt.Add(30 * time.Minute)
+	secret := []byte("secret")
+
+	token, err := GenerateToken("550e8400-e29b-41d4-a716-446655440000", createdAt, expiration, secret)
+	if err != nil {
+		t.Fatalf("expected nil error generating token, got %v", err)
+	}
+
+	_, err = ValidateToken(token, secret)
+	if err == nil {
+		t.Fatal("expected error for expired token")
+	}
+}
+
+func TestValidateTokenInvalidFormat(t *testing.T) {
+	_, err := ValidateToken("invalid-token", []byte("secret"))
+	if err == nil {
+		t.Fatal("expected error for invalid token format")
 	}
 }
 
