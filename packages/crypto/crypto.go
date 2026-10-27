@@ -3,132 +3,27 @@ package crypto
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"regexp"
-	"strings"
-	"time"
 )
 
-var uuidPattern = regexp.MustCompile("^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[1-5][a-fA-F0-9]{3}-[89abAB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$")
-
-func GenerateHash(value string) string {
-	hash := sha256.Sum256([]byte(value))
-	return hex.EncodeToString(hash[:])
-}
-
-type TokenClaims struct {
-	SubscriptionID string `json:"subscriptionId"`
-	CreatedAt      string `json:"createdAt"`
-	Expiration     int64  `json:"expiration"`
-	ExpirationDate string `json:"expirationDate"`
-}
-
-func GenerateToken(subscriptionID string, createdAt time.Time, expiration time.Time, secret []byte) (string, error) {
-	if !isValidUUID(subscriptionID) {
-		return "", errors.New("invalid subscription id")
+func GenerateSymmetricKey(size int) ([]byte, error) {
+	if size != 16 && size != 24 && size != 32 {
+		return nil, errors.New("key size must be 16, 24, or 32 bytes")
 	}
 
-	if len(secret) == 0 {
-		return "", errors.New("secret must not be empty")
-	}
-
-	if !expiration.After(createdAt) {
-		return "", errors.New("expiration must be after createdAt")
-	}
-
-	header := map[string]string{
-		"alg": "HS256",
-		"typ": "JWT",
-	}
-
-	payload := TokenClaims{
-		SubscriptionID: subscriptionID,
-		CreatedAt:      createdAt.UTC().Format(time.RFC3339),
-		Expiration:     expiration.UTC().Unix(),
-		ExpirationDate: expiration.UTC().Format(time.RFC3339),
-	}
-
-	headerJSON, err := json.Marshal(header)
-	if err != nil {
-		return "", err
-	}
-
-	payloadJSON, err := json.Marshal(payload)
-	if err != nil {
-		return "", err
-	}
-
-	encodedHeader := base64.RawURLEncoding.EncodeToString(headerJSON)
-	encodedPayload := base64.RawURLEncoding.EncodeToString(payloadJSON)
-	signingInput := encodedHeader + "." + encodedPayload
-	signature := signToken(signingInput, secret)
-
-	return signingInput + "." + signature, nil
-}
-
-func ValidateToken(token string, secret []byte) (*TokenClaims, error) {
-	if len(secret) == 0 {
-		return nil, errors.New("secret must not be empty")
-	}
-
-	parts := strings.Split(token, ".")
-	if len(parts) != 3 {
-		return nil, errors.New("invalid token format")
-	}
-
-	signingInput := parts[0] + "." + parts[1]
-	expectedSignature := signToken(signingInput, secret)
-	if !hmac.Equal([]byte(parts[2]), []byte(expectedSignature)) {
-		return nil, errors.New("invalid token signature")
-	}
-
-	payloadData, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
+	key := make([]byte, size)
+	if _, err := rand.Read(key); err != nil {
 		return nil, err
 	}
 
-	var claims TokenClaims
-	if err := json.Unmarshal(payloadData, &claims); err != nil {
-		return nil, err
-	}
-
-	if !isValidUUID(claims.SubscriptionID) {
-		return nil, errors.New("invalid subscription id")
-	}
-
-	createdAt, err := time.Parse(time.RFC3339, claims.CreatedAt)
-	if err != nil {
-		return nil, errors.New("invalid createdAt")
-	}
-
-	expirationDate, err := time.Parse(time.RFC3339, claims.ExpirationDate)
-	if err != nil {
-		return nil, errors.New("invalid expirationDate")
-	}
-
-	if expirationDate.UTC().Unix() != claims.Expiration {
-		return nil, errors.New("expiration metadata mismatch")
-	}
-
-	if claims.Expiration <= createdAt.UTC().Unix() {
-		return nil, errors.New("invalid expiration")
-	}
-
-	if time.Now().UTC().Unix() > claims.Expiration {
-		return nil, errors.New("token expired")
-	}
-
-	return &claims, nil
+	return key, nil
 }
 
 func EncryptSymmetric(value string, key []byte) (string, error) {
@@ -297,14 +192,4 @@ func parseRSAPublicKey(publicKeyPEM []byte) (*rsa.PublicKey, error) {
 	}
 
 	return rsaPublicKey, nil
-}
-
-func signToken(value string, secret []byte) string {
-	mac := hmac.New(sha256.New, secret)
-	mac.Write([]byte(value))
-	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-}
-
-func isValidUUID(value string) bool {
-	return uuidPattern.MatchString(value)
 }
