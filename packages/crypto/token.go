@@ -72,14 +72,17 @@ func ValidateToken(token string, secret []byte) (*TokenClaims, error) {
 		return nil, errors.New("invalid token format")
 	}
 
-	signingInput := parts[0] + "." + parts[1]
+	encodedHeader := parts[0]
+	encodedPayload := parts[1]
 	tokenSignature := parts[2]
+
+	signingInput := encodedHeader + "." + encodedPayload
 	expectedSignature := signToken(signingInput, secret)
 	if !hmac.Equal([]byte(tokenSignature), []byte(expectedSignature)) {
 		return nil, errors.New("invalid token signature")
 	}
 
-	payloadData, err := base64.RawURLEncoding.DecodeString(parts[1])
+	payloadData, err := base64.RawURLEncoding.DecodeString(encodedPayload)
 	if err != nil {
 		return nil, err
 	}
